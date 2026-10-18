@@ -1,0 +1,37 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>IngatRX</title>
+
+    <!-- <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" id="favicon"/> -->
+
+    <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+    <header>
+        IngatRX
+    </header>
+
+    <main>
+        <section>
+            <h2>Drug name search</h2>
+            <div class="searchrow">
+                <input type="text" id="q" placeholder="Enter your proposed drug name…" aria-label="Proposed drug name" autocomplete="off">
+                <button id="go">Search</button>
+            </div>
+            <div class="results">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Drug names</th>
+                        <th>Similarity score</th>
+                        <th>Source/s</th>
+                    </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+            <div class="empty" id="empty">Enter a proposed name and click Search to compare it against existing drugs.</div>
+            </div>
+        </section>
+    </main>
+</body>
