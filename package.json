@@ -1,0 +1,26 @@
+{
+  "name": "ingat-pre",
+  "version": "1.0.0",
+  "description": "_ingat ingat lng sa shabu..._",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chua-e/ingat-pre.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/chua-e/ingat-pre/issues"
+  },
+  "homepage": "https://github.com/chua-e/ingat-pre#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
