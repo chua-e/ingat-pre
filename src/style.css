@@ -13,6 +13,8 @@
   --control:#363636; 
   --tag:#eaeaea;
 
+  --font: "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+
   color-scheme:light;
 }
 
@@ -38,7 +40,7 @@ body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-family: var(--font);
     font-size: 0.9em
 }
 
@@ -50,7 +52,14 @@ header {
     align-items: center;
     gap: 1em;
     font-size: 1.6em;
-    font-weight: 700
+    font-weight: 700;
+}
+
+header svg {
+    display: block;
+    flex: none;
+    margin: 0;
+    fill:var(--accent);
 }
 
 main {
@@ -63,7 +72,88 @@ main {
 }
 
 h2 { 
-    font-size:15px;
-    margin:0 0 12px
+    font-size: 15px;
+    margin: 0 0 12px;
 }
+
+aside fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0 0 1em;
+}
+
+aside legend {
+    font-weight: 700;
+    padding: 0;
+    margin-bottom: 0.5em;
+}
+
+aside label {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    color: var(--muted);
+    font-size: 0.9em;
+    margin-bottom: 0.7em;
+    cursor: pointer;
+}
+
+aside input {
+    accent-color: var(--control);
+    margin: 0;
+}
+
+.note { 
+    color: var(--muted);
+    font-size: 0.9em;
+    margin-top: 0.9em;
+}
+
+.searchrow {
+    display: flex;
+    gap: 0.8em;
+    margin-bottom: 2em;
+}
+
+input[type=text] {
+    flex: 1;
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.7em;
+    border-radius: 4px;
+    font: var(--font);
+}
+
+input[type=text]::placeholder {
+    color: var(--muted);
+}
+
+input[type=text]:focus {
+    outline: none;
+    border-color: var(--text);
+    box-shadow: 0 0 0 3px rgba(184,187,38,.45)
+}
+
+button {
+    background: var(--accent);
+    color: #363636;
+    font: var(--font);
+    font-weight: 700;
+    border: 0;
+    padding: 0.9em;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background:var(--accent-hover);
+}
+
+button:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
 
