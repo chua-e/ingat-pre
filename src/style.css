@@ -186,6 +186,29 @@ tbody tr:nth-child(even) td {
     background:var(--row-alt);
 }
 
+tbody tr:hover td {
+    background:rgba(184,187,38,.14);
+}
+
+.score {
+    background:var(--accent);
+    color:#363636;
+    font-weight:700;
+    padding:2px 10px;
+    border-radius:999px;
+    font-size:13px;
+}
+
+.tag { 
+    background:var(--tag);
+    color:var(--muted);
+    padding:2px 8px;
+    border-radius:4px;
+    font-size:12px;
+    margin-right:4px;
+    display:inline-block;
+}
+
 .empty {
     color: #6666668a;
     padding: 4em;
