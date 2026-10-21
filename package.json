@@ -4,7 +4,8 @@
   "description": "_ingat ingat lng sa shabu..._",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p tsconfig.browser.json"
   },
   "repository": {
     "type": "git",
@@ -23,4 +24,5 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
+  
 }
