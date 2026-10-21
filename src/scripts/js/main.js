@@ -8,6 +8,8 @@ function getElement(selector) {
 }
 const input = getElement("#q");
 const button = getElement("#go");
+const buttonLabel = getElement("#go-label");
+const spinner = getElement("#loading-spinner");
 const rows = getElement("#rows");
 const empty = getElement("#empty");
 async function search() {
@@ -19,6 +21,11 @@ async function search() {
         return;
     }
     button.disabled = true;
+    buttonLabel.textContent = "Searching";
+    spinner.hidden = false;
+    empty.textContent = "Searching for similar drug names…";
+    empty.hidden = false;
+    rows.replaceChildren();
     try {
         const response = await fetch("http://127.0.0.1:8000/api/search", {
             method: "POST",
@@ -53,6 +60,8 @@ async function search() {
     }
     finally {
         button.disabled = false;
+        buttonLabel.textContent = "Search";
+        spinner.hidden = true;
     }
 }
 button.addEventListener("click", search);

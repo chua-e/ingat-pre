@@ -1,237 +1,197 @@
-"""
-PoCA - Phonetic and Orthographic Computer Analysis for Philippine Drugs
-
-A pipeline for detecting Look-Alike Sound-Alike (LASA) drug names using
-Filipino phonetic nativization and multiple similarity metrics.
-
-Pipeline stages:
-    1. Filipino Nativization - Adapts English drug names to Filipino orthography
-    2. G2P Conversion - Converts text to IPA phonetic transcriptions
-    3. Similarity Analysis - Computes phonetic and orthographic similarities
-
-Usage:
-    python main.py <input_file>
-
-Example:
-    python main.py data/group1.txt
-"""
-
 import sys
-import argparse
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "algos"))
 
-import numpy as np
-from legacy_tagabaybay import FilipinoNativizer
-from tagalog_g2p import TagalogG2P
-from aline import phonetic_similarity
-from english_g2p import english_to_ipa, clean_for_aline
 from bisim import dice_coefficient
+from english_g2p import clean_for_aline, english_to_ipa
 from nltk.metrics.aline import align, delta
+from tagalog_g2p import TagalogG2P
 
 
 @dataclass
 class WordData:
-    """
-    Container for all phonetic representations of a single word.
-
-    Attributes:
-        original: The original input word (e.g., "Aspirin")
-        nativized: Filipino-adapted spelling (e.g., "Aspirin" -> "Aspirin")
-        english_ipa: English IPA transcription via eng-to-ipa
-        tagalog_ipa: Tagalog IPA transcription of the nativized form
-        direct_ipa: Tagalog IPA transcription of the original (no nativization)
-    """
-
     original: str
-    nativized: str
     english_ipa: str
     tagalog_ipa: str
-    direct_ipa: str
 
 
 @dataclass
 class PairSimilarity:
-    """
-    Container for similarity metrics between two words.
-
-    Attributes:
-        word1: First word's phonetic data
-        word2: Second word's phonetic data
-        english_sim: ALINE similarity using English IPA
-        direct_sim: ALINE similarity using direct Tagalog G2P (no nativization)
-        filipino_sim: ALINE similarity using nativized Tagalog G2P
-        english_bigram: Dice coefficient on original English spellings
-        nativized_bigram: Dice coefficient on nativized spellings
-    """
-
     word1: WordData
     word2: WordData
     english_sim: float
-    direct_sim: float
     filipino_sim: float
     english_bigram: float
-    nativized_bigram: float
     weighted_avg: float
 
 
-def compute_english_similarity(phones1: list, phones2: list) -> float:
-    """
-    Compute phonetic similarity between two English IPA transcriptions using ALINE.
-
-    Uses the ALINE algorithm (Kondrak 2000) to align phonetic segments and
-    compute a normalized similarity score based on phonetic feature differences.
-
-    Args:
-        phones1: List of IPA characters for the first word
-        phones2: List of IPA characters for the second word
-
-    Returns:
-        Similarity score between 0.0 (completely different) and 1.0 (identical)
-    """
+def compute_ipa_similarity(phones1: list[str], phones2: list[str]) -> float:
     if not phones1 or not phones2:
         return 0.0
+
     try:
         alignments = align(phones1, phones2)
-        if not alignments or not alignments[0]:
-            return 0.0
-
-        total_delta = 0.0
-        valid_pairs = 0
-        for pair in alignments[0]:
-            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
-                p1, p2 = str(pair[0]), str(pair[1])
-                if p1 == "-" or p2 == "-":
-                    total_delta += 115
-                else:
-                    try:
-                        total_delta += delta(p1, p2)
-                    except (KeyError, TypeError):
-                        total_delta += 115
-                valid_pairs += 1
-
-        if valid_pairs == 0:
-            return 0.0
-        sim = 1.0 - (total_delta / (valid_pairs * 115))
-        return max(0.0, min(1.0, sim))
-    except Exception:
+    except ValueError:
+        return 0.0
+    if not alignments or not alignments[0]:
         return 0.0
 
+    total_delta = 0.0
+    valid_pairs = 0
+    for pair in alignments[0]:
+        if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+            phone1, phone2 = str(pair[0]), str(pair[1])
+            if phone1 == "-" or phone2 == "-":
+                total_delta += 115
+            else:
+                try:
+                    total_delta += delta(phone1, phone2)
+                except (KeyError, TypeError):
+                    total_delta += 115
+            valid_pairs += 1
 
-def process_words(
-    words: list[str], nativizer: FilipinoNativizer, g2p: TagalogG2P
-) -> list[WordData]:
-    """
-    Process a list of words through nativization and G2P conversion.
-
-    For each word, generates:
-        - Filipino nativized form
-        - English IPA transcription
-        - Tagalog IPA from nativized form
-        - Direct Tagalog IPA (without nativization)
-
-    Args:
-        words: List of input words (typically drug names)
-        nativizer: FilipinoNativizer instance for orthographic adaptation
-        g2p: TagalogG2P instance for phonetic transcription
-
-    Returns:
-        List of WordData objects containing all phonetic representations
-    """
-    result = []
-    for word in words:
-        nativized = nativizer.nativize(word)
-        english_ipa = clean_for_aline(english_to_ipa(word.lower()))
-        tagalog_ipa = g2p.convert_word(nativized)
-        direct_ipa = g2p.convert_word(word.lower())
-        result.append(WordData(word, nativized, english_ipa, tagalog_ipa, direct_ipa))
-    return result
+    if not valid_pairs:
+        return 0.0
+    score = 1.0 - total_delta / (valid_pairs * 115)
+    return max(0.0, min(1.0, score))
 
 
 def compute_pairwise_similarities(
-    candidates: list[WordData], g2p: TagalogG2P, query: WordData
+    query: WordData, candidates: list[WordData]
 ) -> list[PairSimilarity]:
-    """
-    Compute all pairwise similarity metrics between words.
-
-    For each unique pair, computes:
-        - English G2P phonetic similarity (ALINE)
-        - Direct Tagalog G2P similarity (ALINE)
-        - Nativized Filipino similarity (ALINE)
-        - English bigram similarity (Dice coefficient)
-        - Nativized bigram similarity (Dice coefficient)
-
-    Args:
-        word_data: List of WordData objects from process_words()
-        g2p: TagalogG2P instance for similarity computation
-
-    Returns:
-        List of PairSimilarity objects, sorted by Filipino similarity (descending)
-    """
     pairs = []
-    
     for candidate in candidates:
-        eng_bigram = dice_coefficient(query.original, candidate.original)
-        nat_bigram = dice_coefficient(query.nativized, candidate.nativized)
-
-        fil_sim, _ = phonetic_similarity(query.nativized, candidate.nativized, g2p)
-        direct_sim, _ = phonetic_similarity(
-            query.original.lower(), candidate.original.lower(), g2p
-        )
-        eng_sim = compute_english_similarity(
+        english_bigram = dice_coefficient(query.original, candidate.original)
+        english_sim = compute_ipa_similarity(
             list(query.english_ipa), list(candidate.english_ipa)
         )
-
-        weighted_sim = (eng_bigram + direct_sim + fil_sim + eng_sim)/4
-
+        filipino_sim = compute_ipa_similarity(
+            list(query.tagalog_ipa), list(candidate.tagalog_ipa)
+        )
+        weighted_avg = (english_bigram + english_sim + filipino_sim) / 3
         pairs.append(
             PairSimilarity(
-                query, candidate, eng_sim, direct_sim, fil_sim, eng_bigram, nat_bigram, weighted_sim
+                word1=query,
+                word2=candidate,
+                english_sim=english_sim,
+                filipino_sim=filipino_sim,
+                english_bigram=english_bigram,
+                weighted_avg=weighted_avg,
             )
         )
-
-    pairs.sort(key=lambda x: x.filipino_sim, reverse=True)
     return pairs
 
-def search_drugs(query: str, drugs: list[dict[str, str]], 
-                 nativizer: FilipinoNativizer, g2p: TagalogG2P) -> list[dict[str, object]]:
+
+def prepare_candidates(
+    rows: list[dict[str, str]],
+) -> list[tuple[dict[str, str], WordData]]:
+    prepared = []
+    for row in rows:
+        name = row.get("name", "").strip()
+        english_ipa = row.get("eng_ipa", "").strip()
+        tagalog_ipa = row.get("fil_ipa", "").strip()
+        if name and english_ipa and tagalog_ipa:
+            prepared.append(
+                (
+                    row,
+                    WordData(
+                        original=name,
+                        english_ipa=clean_for_aline(english_ipa),
+                        tagalog_ipa=tagalog_ipa,
+                    ),
+                )
+            )
+    return prepared
+
+
+def search_drugs(
+    query: str,
+    prepared_candidates: list[tuple[dict[str, str], WordData]],
+    g2p: TagalogG2P,
+) -> list[dict[str, object]]:
+    """Rank candidates using the existing combined phonetic and spelling score."""
     query = query.strip()
     if not query:
-        raise ValueError("Query empty.")
+        raise ValueError("Query must not be empty.")
 
-    records = [
-        row for row in drugs
-            if row.get("Drugs", "").strip()
-    ]
-
-    candidate_names = [row["Drugs"].strip() for row in records]
-
-    query_data = process_words([query], nativizer, g2p)[0]
-    candidates = process_words(candidate_names, nativizer, g2p)
-    pairs = compute_pairwise_similarities(query_data, candidates, g2p)
-
+    query_data = WordData(
+        original=query,
+        english_ipa=clean_for_aline(english_to_ipa(query.lower())),
+        tagalog_ipa=g2p.convert_word(query.lower()),
+    )
+    pairs = compute_pairwise_similarities(
+        query_data,
+        [candidate for _, candidate in prepared_candidates],
+    )
     ranked = sorted(
-        zip(pairs, records),
+        zip(pairs, prepared_candidates),
         key=lambda item: item[0].weighted_avg,
         reverse=True,
-    )[:50]
+    )[:20]
 
     return [
         {
-            "name": record["Drugs"],
-            "type": record.get("Drug_Type", ""),
-            "source": "Philippine FDA",
-            "score": round(pair.weighted_avg * 100, 2),
+            "name": drug["name"],
+            "type": drug.get("type", ""),
+            "source": drug.get("source", "Pretranscribed dataset"),
+            "score": round(float(pair.weighted_avg) * 100, 2),
             "components": {
-                "english": round(pair.english_sim * 100, 2),
-                "direct": round(pair.direct_sim * 100, 2),
-                "filipino": round(pair.filipino_sim * 100, 2),
-                "english_bigram": round(pair.english_bigram * 100, 2),
-                "nativized_bigram": round(pair.nativized_bigram * 100, 2),
+                "english": round(float(pair.english_sim) * 100, 2),
+                "filipino": round(float(pair.filipino_sim) * 100, 2),
+                "english_bigram": round(float(pair.english_bigram) * 100, 2),
             },
         }
-        for pair, record in ranked
+        for pair, (drug, _) in ranked
     ]
-    
+
+def normalize_name(name: str) -> str:
+    return "".join(character for character in name.casefold() if character.isalnum())
+
+def levenshtein_distance(first: str, second: str) -> int:
+    if len(first) < len(second):
+        first, second = second, first
+
+    previous = list(range(len(second) + 1))
+    for row, first_char in enumerate(first, start=1):
+        current = [row]
+        for column, second_char in enumerate(second, start=1):
+            current.append(
+                min(
+                    current[column - 1] + 1,
+                    previous[column] + 1,
+                    previous[column - 1] + (first_char != second_char),
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def lev_search(
+    query: str,
+    prepared_candidates: list[tuple[dict[str, str], WordData]],
+) -> list[dict[str, object]]:
+    normalized_query = normalize_name(query.strip())
+    if not normalized_query:
+        raise ValueError("Query must contain at least one letter or number.")
+
+    ranked = []
+    for drug, candidate in prepared_candidates:
+        distance = levenshtein_distance(
+            normalized_query, normalize_name(candidate.original)
+        )
+        max_len = max(len(normalized_query), len(normalize_name(candidate.original)))
+        score = 1.0 - (distance / max_len)
+        ranked.append((score, candidate.original.casefold(), drug))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+
+    return [
+        {
+            "name": drug["name"],
+            "type": drug.get("type", ""),
+            "source": drug.get("source", "Philippine FDA"),
+            "score": round(score * 100, 2),
+        }
+        for score, _, drug in ranked[:20]
+    ]

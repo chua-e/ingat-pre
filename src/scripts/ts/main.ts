@@ -17,6 +17,8 @@ function getElement<T extends HTMLElement>(selector: string): T {
 
 const input = getElement<HTMLInputElement>("#q");
 const button = getElement<HTMLButtonElement>("#go");
+const buttonLabel = getElement<HTMLSpanElement>("#go-label");
+const spinner = getElement<HTMLSpanElement>("#loading-spinner");
 const rows = getElement<HTMLTableSectionElement>("#rows");
 const empty = getElement<HTMLDivElement>("#empty");
 
@@ -31,6 +33,11 @@ async function search(): Promise<void> {
         }
 
         button.disabled = true;
+        buttonLabel.textContent = "Searching";
+        spinner.hidden = false;
+        empty.textContent = "Searching for similar drug names…";
+        empty.hidden = false;
+        rows.replaceChildren();
 
         try {
             const response = await fetch("http://127.0.0.1:8000/api/search", {
@@ -71,6 +78,8 @@ async function search(): Promise<void> {
             rows.replaceChildren();
         } finally {
             button.disabled = false;
+            buttonLabel.textContent = "Search";
+            spinner.hidden = true;
         }
 }
 
