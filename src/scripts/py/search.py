@@ -14,7 +14,7 @@ from tagalog_g2p import TagalogG2P
 class WordData:
     original: str
     english_ipa: str
-    tagalog_ipa: str
+    # tagalog_ipa: str
 
 
 @dataclass
@@ -22,7 +22,7 @@ class PairSimilarity:
     word1: WordData
     word2: WordData
     english_sim: float
-    filipino_sim: float
+    # filipino_sim: float
     english_bigram: float
     weighted_avg: float
 
@@ -30,6 +30,8 @@ class PairSimilarity:
 def compute_ipa_similarity(phones1: list[str], phones2: list[str]) -> float:
     if not phones1 or not phones2:
         return 0.0
+    if phones1 == phones2:
+        return 1.0
 
     try:
         alignments = align(phones1, phones2)
@@ -67,16 +69,16 @@ def compute_pairwise_similarities(
         english_sim = compute_ipa_similarity(
             list(query.english_ipa), list(candidate.english_ipa)
         )
-        filipino_sim = compute_ipa_similarity(
-            list(query.tagalog_ipa), list(candidate.tagalog_ipa)
-        )
-        weighted_avg = (english_bigram + english_sim + filipino_sim) / 3
+        # filipino_sim = compute_ipa_similarity(
+        #     list(query.tagalog_ipa), list(candidate.tagalog_ipa)
+        # )
+        weighted_avg = (english_bigram + english_sim) / 2
         pairs.append(
             PairSimilarity(
                 word1=query,
                 word2=candidate,
                 english_sim=english_sim,
-                filipino_sim=filipino_sim,
+                # filipino_sim=filipino_sim,
                 english_bigram=english_bigram,
                 weighted_avg=weighted_avg,
             )
@@ -91,15 +93,15 @@ def prepare_candidates(
     for row in rows:
         name = row.get("name", "").strip()
         english_ipa = row.get("eng_ipa", "").strip()
-        tagalog_ipa = row.get("fil_ipa", "").strip()
-        if name and english_ipa and tagalog_ipa:
+        # tagalog_ipa = row.get("fil_ipa", "").strip()
+        if name and english_ipa:
             prepared.append(
                 (
                     row,
                     WordData(
                         original=name,
                         english_ipa=clean_for_aline(english_ipa),
-                        tagalog_ipa=tagalog_ipa,
+                        # tagalog_ipa=tagalog_ipa,
                     ),
                 )
             )
@@ -109,17 +111,24 @@ def prepare_candidates(
 def search_drugs(
     query: str,
     prepared_candidates: list[tuple[dict[str, str], WordData]],
-    g2p: TagalogG2P,
 ) -> list[dict[str, object]]:
     """Rank candidates using the existing combined phonetic and spelling score."""
     query = query.strip()
     if not query:
         raise ValueError("Query must not be empty.")
 
-    query_data = WordData(
+    normalized_query = normalize_name(query)
+    exact_candidate = next(
+        (
+            candidate
+            for _, candidate in prepared_candidates
+            if normalize_name(candidate.original) == normalized_query
+        ),
+        None,
+    )
+    query_data = exact_candidate or WordData(
         original=query,
         english_ipa=clean_for_aline(english_to_ipa(query.lower())),
-        tagalog_ipa=g2p.convert_word(query.lower()),
     )
     pairs = compute_pairwise_similarities(
         query_data,
@@ -135,11 +144,11 @@ def search_drugs(
         {
             "name": drug["name"],
             "type": drug.get("type", ""),
-            "source": drug.get("source", "Pretranscribed dataset"),
+            "source": drug.get("source", "Philippine FDA"),
             "score": round(float(pair.weighted_avg) * 100, 2),
             "components": {
                 "english": round(float(pair.english_sim) * 100, 2),
-                "filipino": round(float(pair.filipino_sim) * 100, 2),
+                # "filipino": round(float(pair.filipino_sim) * 100, 2),
                 "english_bigram": round(float(pair.english_bigram) * 100, 2),
             },
         }

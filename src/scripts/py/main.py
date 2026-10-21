@@ -50,6 +50,6 @@ def search(request: SearchRequest):
         raise HTTPException(status_code=422, detail="Enter a drug name.")
 
     try:
-        return lev_search(query, prepared_candidates)
+        return search_drugs(query, prepared_candidates)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
