@@ -4,8 +4,10 @@
   "description": "_ingat ingat lng sa shabu..._",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc -p tsconfig.browser.json"
+    "start": "cd src/scripts/py && uv run main.py",
+    "build": "tsc -p tsconfig.browser.json",
+    "watch": "tsc -p tsconfig.browser.json --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",

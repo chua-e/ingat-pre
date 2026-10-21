@@ -4,8 +4,11 @@ import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+ROOT_DIR = Path(__file__).parents[3]
 ALGO_DIR = Path(__file__).parent / "algos"
 sys.path.insert(0, str(ALGO_DIR))
 
@@ -35,6 +38,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:5173",
         "https://chua-e.github.io",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
     ],
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
@@ -54,3 +59,18 @@ def search(request: SearchRequest):
         return search_drugs(query, prepared_candidates)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+# Serve the frontend from the same server so one command runs everything.
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(ROOT_DIR / "index.html")
+
+
+app.mount("/src", StaticFiles(directory=ROOT_DIR / "src"), name="src")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    print("IngatRX running at http://127.0.0.1:8000")
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
