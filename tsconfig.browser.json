@@ -8,6 +8,7 @@
     "rootDir": "./src/scripts/ts",
     "outDir": "./src/scripts/js",
     "declaration": false,
+    "declarationMap": false,
     "noEmitOnError": true
   },
   "include": ["src/scripts/ts/**/*.ts"]

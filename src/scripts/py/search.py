@@ -21,7 +21,7 @@ import argparse
 from pathlib import Path
 from dataclasses import dataclass
 
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "algos"))
 
 import numpy as np
 from legacy_tagabaybay import FilipinoNativizer
