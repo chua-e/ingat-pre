@@ -90,11 +90,13 @@ function spellingToIpa(spelling) {
     }
     return ipa;
 }
-/** Filipino IPA for a drug name, restricted to symbols ALINE accepts. */
-export function toFilipinoIpa(name, allowedSymbols) {
+export function transcribe(name, allowedSymbols) {
     const nativized = name.toLowerCase().split(" ").map(nativizeWord).join(" ").trim();
     const ipa = spellingToIpa(nativized);
     const withOnset = /^[aeiou]/.test(ipa) ? `ʔ${ipa}` : ipa;
-    return [...withOnset].filter((symbol) => allowedSymbols.has(symbol)).join("");
+    return {
+        nativized,
+        ipa: [...withOnset].filter((symbol) => allowedSymbols.has(symbol)).join(""),
+    };
 }
 //# sourceMappingURL=transcribe.js.map

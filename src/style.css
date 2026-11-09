@@ -1,7 +1,5 @@
 :root{
-  --dark:#363636; 
-
-  --accent:#b8bb26; 
+  --accent:#b8bb26;
   --accent-hover:#9fa21f; 
   
   --muted:#666666;
@@ -10,8 +8,9 @@
   --row-alt:#f4f4f4; 
   --border:#d4d4d4;
   --text:#363636; 
-  --control:#363636; 
-  --tag:#eaeaea;
+  --control:#363636;
+
+  --danger:#c62828;
 
   --font: "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
 
@@ -25,9 +24,9 @@
     --row-alt:#363636; 
     --border:#4a4a4a;
     --text:#eaeaea; 
-    --muted:#a8a8a8; 
-    --control:#b8bb26; 
-    --tag:#444444;
+    --muted:#a8a8a8;
+    --danger:#ff8a80;
+    --control:#b8bb26;
     color-scheme:dark;
   }
 }
@@ -105,12 +104,6 @@ aside label {
 aside input {
     accent-color: var(--control);
     margin: 0;
-}
-
-.note { 
-    color: var(--muted);
-    font-size: 0.9em;
-    margin-top: 0.9em;
 }
 
 .searchrow {
@@ -221,31 +214,60 @@ td {
     overflow-wrap: anywhere;
 }
 
-tbody tr:nth-child(even) td {
+tbody tr.alt td {
     background:var(--row-alt);
+}
+
+tr.detail td {
+    padding-top: 0;
+}
+
+.warning {
+    display: inline-block;
+    margin-left: 0.7em;
+    color: var(--danger);
+    font-size: 0.85em;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.breakdown h3 {
+    margin: 0.3em 0;
+    color: var(--muted);
+    font-size: 0.85em;
+}
+
+.inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15em, 1fr));
+    gap: 0.15em 1.5em;
+    margin: 0;
+}
+
+.inputs > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1em;
+    font-size: 0.85em;
+}
+
+.inputs dt {
+    color: var(--muted);
+}
+
+.inputs dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.breakdown p {
+    margin: 0.4em 0 0;
+    color: var(--muted);
+    font-size: 0.85em;
 }
 
 tbody tr:hover td {
     background:rgba(184,187,38,.14);
-}
-
-.score {
-    background:var(--accent);
-    color:#363636;
-    font-weight:700;
-    padding:2px 10px;
-    border-radius:999px;
-    font-size:13px;
-}
-
-.tag { 
-    background:var(--tag);
-    color:var(--muted);
-    padding:2px 8px;
-    border-radius:4px;
-    font-size:12px;
-    margin-right:4px;
-    display:inline-block;
 }
 
 .empty {

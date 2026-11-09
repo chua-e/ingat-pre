@@ -3,8 +3,6 @@
     <meta charset="UTF-8" />
     <title>IngatRX</title>
 
-    <!-- <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" id="favicon"/> -->
-
     <link rel="stylesheet" href="src/style.css" />
 </head>
 <body>
@@ -37,7 +35,10 @@
                         <thead>
                             <tr>
                                 <th>Drug names</th>
-                                <th>Similarity score</th>
+                                <th id="nativized-head" hidden>Nativized name</th>
+                                <th>Look-alike similarity</th>
+                                <th>Sound-alike similarity</th>
+                                <th id="score-head">Similarity score</th>
                                 <th>Source/s</th>
                             </tr>
                         </thead>
@@ -65,7 +66,17 @@
                 <label><input type="checkbox" name="dnt" value="generic" checked> Generic Name</label>
                 <label><input type="checkbox" name="dnt" value="brand" checked> Brand Name</label>
             </fieldset>
-            <!-- <p class="note">Disclaimer: Mock website not indicative of final product :P</p> -->
+            <fieldset id="arrange" hidden>
+                <legend>Arrange by</legend>
+                <label><input type="radio" name="arrange" value="score" checked> LASA probability</label>
+                <label><input type="radio" name="arrange" value="look"> Look-alike similarity</label>
+                <label><input type="radio" name="arrange" value="sound"> Sound-alike similarity</label>
+            </fieldset>
+            <fieldset>
+                <legend>Show in results</legend>
+                <label><input type="checkbox" id="show-breakdown"> Score breakdown</label>
+                <label><input type="checkbox" id="show-nativized"> Nativized name</label>
+            </fieldset>
         </aside>
     </main>
     <script type="module" src="./src/scripts/js/main.js"></script>

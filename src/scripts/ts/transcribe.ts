@@ -99,10 +99,18 @@ function spellingToIpa(spelling: string): string {
   return ipa;
 }
 
-/** Filipino IPA for a drug name, restricted to symbols ALINE accepts. */
-export function toFilipinoIpa(name: string, allowedSymbols: ReadonlySet<string>): string {
+export interface Transcription {
+  nativized: string;
+  /** Filipino IPA, restricted to symbols ALINE accepts. */
+  ipa: string;
+}
+
+export function transcribe(name: string, allowedSymbols: ReadonlySet<string>): Transcription {
   const nativized = name.toLowerCase().split(" ").map(nativizeWord).join(" ").trim();
   const ipa = spellingToIpa(nativized);
   const withOnset = /^[aeiou]/.test(ipa) ? `ʔ${ipa}` : ipa;
-  return [...withOnset].filter((symbol) => allowedSymbols.has(symbol)).join("");
+  return {
+    nativized,
+    ipa: [...withOnset].filter((symbol) => allowedSymbols.has(symbol)).join(""),
+  };
 }
