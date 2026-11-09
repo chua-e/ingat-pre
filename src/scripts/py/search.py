@@ -1,13 +1,33 @@
+import functools
+import heapq
+import importlib
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "algos"))
 
-from bisim import dice_coefficient
+from bisim import get_bigrams
 from english_g2p import clean_for_aline, english_to_ipa
-from nltk.metrics.aline import align, delta
 from tagalog_g2p import TagalogG2P
+
+# NLTK's align() spends most of its time recomputing feature distances for the
+# same phoneme pairs. They only depend on the segments, so memoize them.
+# align() looks these up as module globals, so patching the module is enough.
+# Inputs must be str (not list) so the 2-segment slices passed to sigma_exp are
+# hashable.
+_aline = importlib.import_module("nltk.metrics.aline")
+for _name in ("sigma_skip", "sigma_sub", "sigma_exp", "delta"):
+    _fn = getattr(_aline, _name)
+    if not hasattr(_fn, "cache_info"):
+        setattr(_aline, _name, functools.lru_cache(maxsize=None)(_fn))
+align = _aline.align
+
+# Only the best-looking candidates by cheap bigram scores go through ALINE.
+# Taken separately on spelling and on IPA so sound-alikes spelled differently
+# still get a chance. Set to None to run ALINE on every row.
+PREFILTER_SIZE: int | None = 500
+RESULT_LIMIT = 20
 
 
 @dataclass
@@ -15,6 +35,23 @@ class WordData:
     original: str
     english_ipa: str
     # tagalog_ipa: str
+    name_bigrams: frozenset[str] = field(init=False, repr=False, compare=False)
+    ipa_bigrams: frozenset[str] = field(init=False, repr=False, compare=False)
+    normalized: str = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self.name_bigrams = frozenset(get_bigrams(self.original))
+        self.ipa_bigrams = frozenset(get_bigrams(self.english_ipa))
+        self.normalized = normalize_name(self.original)
+
+
+def dice(bigrams1: frozenset[str], bigrams2: frozenset[str]) -> float:
+    """Same result as bisim.dice_coefficient, on precomputed bigram sets."""
+    if not bigrams1 and not bigrams2:
+        return 1.0
+    if not bigrams1 or not bigrams2:
+        return 0.0
+    return 2.0 * len(bigrams1 & bigrams2) / (len(bigrams1) + len(bigrams2))
 
 
 @dataclass
@@ -27,7 +64,12 @@ class PairSimilarity:
     weighted_avg: float
 
 
-def compute_ipa_similarity(phones1: list[str], phones2: list[str]) -> float:
+def compute_ipa_similarity(phones1: str, phones2: str) -> float:
+    # The memoized ALINE functions need hashable (str) input.
+    if not isinstance(phones1, str):
+        phones1 = "".join(phones1)
+    if not isinstance(phones2, str):
+        phones2 = "".join(phones2)
     if not phones1 or not phones2:
         return 0.0
     if phones1 == phones2:
@@ -49,7 +91,7 @@ def compute_ipa_similarity(phones1: list[str], phones2: list[str]) -> float:
                 total_delta += 115
             else:
                 try:
-                    total_delta += delta(phone1, phone2)
+                    total_delta += _aline.delta(phone1, phone2)
                 except (KeyError, TypeError):
                     total_delta += 115
             valid_pairs += 1
@@ -65,10 +107,8 @@ def compute_pairwise_similarities(
 ) -> list[PairSimilarity]:
     pairs = []
     for candidate in candidates:
-        english_bigram = dice_coefficient(query.original, candidate.original)
-        english_sim = compute_ipa_similarity(
-            list(query.english_ipa), list(candidate.english_ipa)
-        )
+        english_bigram = dice(query.name_bigrams, candidate.name_bigrams)
+        english_sim = compute_ipa_similarity(query.english_ipa, candidate.english_ipa)
         # filipino_sim = compute_ipa_similarity(
         #     list(query.tagalog_ipa), list(candidate.tagalog_ipa)
         # )
@@ -108,6 +148,31 @@ def prepare_candidates(
     return prepared
 
 
+def shortlist_candidates(
+    query: WordData,
+    prepared_candidates: list[tuple[dict[str, str], WordData]],
+    size: int | None,
+) -> list[tuple[dict[str, str], WordData]]:
+    """Top `size` rows by spelling bigrams plus top `size` by IPA bigrams.
+
+    Keeps the original row order so ties rank the same as a full scan.
+    """
+    if size is None or len(prepared_candidates) <= 2 * size:
+        return prepared_candidates
+    indices = range(len(prepared_candidates))
+    by_name = heapq.nlargest(
+        size,
+        indices,
+        key=lambda i: dice(query.name_bigrams, prepared_candidates[i][1].name_bigrams),
+    )
+    by_ipa = heapq.nlargest(
+        size,
+        indices,
+        key=lambda i: dice(query.ipa_bigrams, prepared_candidates[i][1].ipa_bigrams),
+    )
+    return [prepared_candidates[i] for i in sorted(set(by_name) | set(by_ipa))]
+
+
 def search_drugs(
     query: str,
     prepared_candidates: list[tuple[dict[str, str], WordData]],
@@ -122,7 +187,7 @@ def search_drugs(
         (
             candidate
             for _, candidate in prepared_candidates
-            if normalize_name(candidate.original) == normalized_query
+            if candidate.normalized == normalized_query
         ),
         None,
     )
@@ -130,15 +195,16 @@ def search_drugs(
         original=query,
         english_ipa=clean_for_aline(english_to_ipa(query.lower())),
     )
+    shortlist = shortlist_candidates(query_data, prepared_candidates, PREFILTER_SIZE)
     pairs = compute_pairwise_similarities(
         query_data,
-        [candidate for _, candidate in prepared_candidates],
+        [candidate for _, candidate in shortlist],
     )
     ranked = sorted(
-        zip(pairs, prepared_candidates),
+        zip(pairs, shortlist),
         key=lambda item: item[0].weighted_avg,
         reverse=True,
-    )[:20]
+    )[:RESULT_LIMIT]
 
     return [
         {
@@ -155,8 +221,10 @@ def search_drugs(
         for pair, (drug, _) in ranked
     ]
 
+
 def normalize_name(name: str) -> str:
     return "".join(character for character in name.casefold() if character.isalnum())
+
 
 def levenshtein_distance(first: str, second: str) -> int:
     if len(first) < len(second):
