@@ -1,3 +1,6 @@
+const SOURCE = "ph_GenBrn";
+const RESULT_LIMIT = 20;
+const MAX_WORKERS = 8;
 const STEMS = ["-pril", "-sartan", "-statin", "-mab", "-nib", "-azole", "-prazole", "-olol", "-pine", "-cillin", "-azepam", "-oxetine"];
 function getElement(selector) {
     const element = document.querySelector(selector);
@@ -12,6 +15,42 @@ const buttonLabel = getElement("#go-label");
 const spinner = getElement("#loading-spinner");
 const rows = getElement("#rows");
 const empty = getElement("#empty");
+const workerCount = Math.min(navigator.hardwareConcurrency || 4, MAX_WORKERS);
+const workers = Array.from({ length: workerCount }, (_, shard) => new Worker(new URL(`./worker.js?shard=${shard}&of=${workerCount}`, import.meta.url), {
+    type: "module",
+}));
+let nextSearchId = 0;
+function askWorker(worker, id, query) {
+    return new Promise((resolve, reject) => {
+        const onMessage = (event) => {
+            if (event.data.id !== id) {
+                return;
+            }
+            worker.removeEventListener("message", onMessage);
+            if ("error" in event.data) {
+                reject(new Error(event.data.error));
+            }
+            else {
+                resolve(event.data.matches);
+            }
+        };
+        worker.addEventListener("message", onMessage);
+        worker.postMessage({ id, query, limit: RESULT_LIMIT });
+    });
+}
+async function runSearch(query) {
+    const id = nextSearchId++;
+    const shards = await Promise.all(workers.map((worker) => askWorker(worker, id, query)));
+    return shards
+        .flat()
+        .sort((first, second) => second.score - first.score || first.index - second.index)
+        .slice(0, RESULT_LIMIT)
+        .map(({ name, score }) => ({
+        name,
+        score: Math.round(score * 10000) / 100,
+        source: SOURCE,
+    }));
+}
 async function search() {
     const query = input.value.trim();
     if (!query) {
@@ -27,15 +66,7 @@ async function search() {
     empty.hidden = false;
     rows.replaceChildren();
     try {
-        const response = await fetch("https://ingat-pre.onrender.com/api/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query }),
-        });
-        if (!response.ok) {
-            throw new Error(`Search failed: ${response.status}`);
-        }
-        const results = await response.json();
+        const results = await runSearch(query);
         rows.replaceChildren();
         for (const result of results) {
             const row = document.createElement("tr");

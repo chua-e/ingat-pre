@@ -1,4 +1,5 @@
 from pathlib import Path
+import csv
 import os
 import sys
 
@@ -16,7 +17,23 @@ load_dotenv(ROOT_DIR / ".env")
 ALGO_DIR = Path(__file__).parent / "algos"
 sys.path.insert(0, str(ALGO_DIR))
 
-from search import lev_search, prepare_candidates, search_drugs
+from search import lev_search, prepare_candidates, query_to_fil_ipa, search_drugs
+
+DRUG_CSV = Path(__file__).parent / "data" / "ph_GenBrn.csv"
+
+
+def load_csv_rows() -> list[dict[str, str]]:
+    """Load drug names and transcribe them the same way as typed queries."""
+    with DRUG_CSV.open(newline="", encoding="utf-8-sig") as csv_file:
+        return [
+            {
+                "name": row["Drug Names"],
+                "fil_ipa": query_to_fil_ipa(row["Drug Names"]),
+                "source": DRUG_CSV.stem,
+            }
+            for row in csv.DictReader(csv_file)
+        ]
+
 
 def load_transcription_rows() -> list[dict[str, str]]:
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -35,7 +52,7 @@ def load_transcription_rows() -> list[dict[str, str]]:
     while True:
         response = (
             client.table("drug-db")
-            .select("id,name,eng_ipa,fil_ipa,source")
+            .select("id,name,fil_ipa,source")
             .range(offset, offset + page_size - 1)
             .execute()
         )
@@ -47,17 +64,11 @@ def load_transcription_rows() -> list[dict[str, str]]:
 
     return rows
 
-transcription_rows = load_transcription_rows()
+transcription_rows = load_csv_rows()
 prepared_candidates = prepare_candidates(transcription_rows)
 if not prepared_candidates:
-    raise RuntimeError(
-        "Supabase returned no valid drug rows. "
-        "Check that drug-db has non-empty name and eng_ipa columns."
-    )
-print(
-    f"Loaded {len(prepared_candidates)} drug transcriptions "
-    "from Supabase."
-)
+    raise RuntimeError(f"{DRUG_CSV.name} has no usable drug names.")
+print(f"Loaded {len(prepared_candidates)} drug transcriptions from {DRUG_CSV.name}.")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,

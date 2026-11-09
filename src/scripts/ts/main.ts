@@ -1,9 +1,14 @@
+import type { ShardMatch, WorkerReply } from "./worker.js";
+
 interface SearchResult {
   name: string;
-  type: string;
-  source: string;
   score: number;
+  source: string;
 }
+
+const SOURCE = "ph_GenBrn";
+const RESULT_LIMIT = 20;
+const MAX_WORKERS = 8;
 
 const STEMS=["-pril","-sartan","-statin","-mab","-nib","-azole","-prazole","-olol","-pine","-cillin","-azepam","-oxetine"];
 
@@ -21,6 +26,48 @@ const buttonLabel = getElement<HTMLSpanElement>("#go-label");
 const spinner = getElement<HTMLSpanElement>("#loading-spinner");
 const rows = getElement<HTMLTableSectionElement>("#rows");
 const empty = getElement<HTMLDivElement>("#empty");
+
+const workerCount = Math.min(navigator.hardwareConcurrency || 4, MAX_WORKERS);
+const workers = Array.from(
+    { length: workerCount },
+    (_, shard) =>
+        new Worker(new URL(`./worker.js?shard=${shard}&of=${workerCount}`, import.meta.url), {
+            type: "module",
+        }),
+);
+let nextSearchId = 0;
+
+function askWorker(worker: Worker, id: number, query: string): Promise<ShardMatch[]> {
+    return new Promise((resolve, reject) => {
+        const onMessage = (event: MessageEvent<WorkerReply>) => {
+            if (event.data.id !== id) {
+                return;
+            }
+            worker.removeEventListener("message", onMessage);
+            if ("error" in event.data) {
+                reject(new Error(event.data.error));
+            } else {
+                resolve(event.data.matches);
+            }
+        };
+        worker.addEventListener("message", onMessage);
+        worker.postMessage({ id, query, limit: RESULT_LIMIT });
+    });
+}
+
+async function runSearch(query: string): Promise<SearchResult[]> {
+    const id = nextSearchId++;
+    const shards = await Promise.all(workers.map((worker) => askWorker(worker, id, query)));
+    return shards
+        .flat()
+        .sort((first, second) => second.score - first.score || first.index - second.index)
+        .slice(0, RESULT_LIMIT)
+        .map(({ name, score }) => ({
+            name,
+            score: Math.round(score * 10000) / 100,
+            source: SOURCE,
+        }));
+}
 
 async function search(): Promise<void> {
         const query = input.value.trim();
@@ -40,17 +87,7 @@ async function search(): Promise<void> {
         rows.replaceChildren();
 
         try {
-            const response = await fetch("https://ingat-pre.onrender.com/api/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Search failed: ${response.status}`);
-            }
-
-            const results: SearchResult[] = await response.json();
+            const results = await runSearch(query);
             rows.replaceChildren();
 
             for (const result of results) {

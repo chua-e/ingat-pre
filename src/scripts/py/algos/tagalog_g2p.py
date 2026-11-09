@@ -28,6 +28,7 @@ class TagalogG2P:
             "t": "t",
             "k": "k",
             "b": "b",
+            "f": "f",  # Loanwords; kept because the stored fil_ipa keeps it
             "d": "d",
             "g": "g",  # Using 'g' for ALINE compatibility (not 'ɡ')
             "m": "m",

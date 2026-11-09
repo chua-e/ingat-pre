@@ -1,0 +1,25 @@
+[package]
+name = "aline-wasm"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+# Only the libraries pho's ALINE code needs.
+[dependencies]
+csv = "1.4.0"
+enum-map = { version = "2.7.3", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0.18"
+toml = "1.1.0"
+unicode-segmentation = "1.11.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[workspace]
