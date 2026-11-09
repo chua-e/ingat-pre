@@ -10,5 +10,7 @@ dependencies = [
     "fastapi>=0.156.8",
     "nltk>=3.9.2",
     "numpy>=2.3.5",
+    "python-dotenv>=1.0.0",
+    "supabase>=2.0.0",
     "uvicorn>=0.54.0",
 ]

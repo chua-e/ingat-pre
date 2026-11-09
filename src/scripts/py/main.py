@@ -1,33 +1,62 @@
 from pathlib import Path
-import csv
+import os
 import sys
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from supabase import create_client
 
 ROOT_DIR = Path(__file__).parents[3]
+load_dotenv(ROOT_DIR / ".env")
+
 ALGO_DIR = Path(__file__).parent / "algos"
 sys.path.insert(0, str(ALGO_DIR))
 
 from search import lev_search, prepare_candidates, search_drugs
 
-DATA_DIR = Path(__file__).parent / "data"
+def load_transcription_rows() -> list[dict[str, str]]:
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY") or os.environ.get("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        raise RuntimeError(
+            "Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY "
+            "(or SUPABASE_KEY) in the .env file."
+        )
 
-with (DATA_DIR / "drugs.csv").open(encoding="utf-8", newline="") as file:
-    transcription_rows = list(csv.DictReader(file))
+    client = create_client(supabase_url, supabase_key)
+    rows: list[dict[str, str]] = []
+    page_size = 1000
+    offset = 0
 
+    while True:
+        response = (
+            client.table("drug-db")
+            .select("id,name,eng_ipa,fil_ipa,source")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        page = response.data
+        rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+
+    return rows
+
+transcription_rows = load_transcription_rows()
 prepared_candidates = prepare_candidates(transcription_rows)
 if not prepared_candidates:
     raise RuntimeError(
-        "No valid rows found in the saved transcription CSV. "
-        "Expected non-empty name, eng_ipa, and fil_ipa columns."
+        "Supabase returned no valid drug rows. "
+        "Check that drug-db has non-empty name and eng_ipa columns."
     )
 print(
     f"Loaded {len(prepared_candidates)} drug transcriptions "
-    f"from {DATA_DIR / 'drugs.csv'}."
+    "from Supabase."
 )
 app = FastAPI()
 app.add_middleware(
